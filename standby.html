@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Standby • Uhr + Mini-Snake</title>
+    <style>
+        :root {
+            --bg: #0b0b0b;
+            --fg: #e8e8e8;
+            --muted: #a9a9a9;
+            --accent: #ffffff;
+            --tick: #2a2a2a;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: var(--bg);
+            color: var(--fg);
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            letter-spacing: 0.2px;
+        }
+        .wrap {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 4vmin;
+        }
+        .clock-area {
+            position: relative;
+            display: grid;
+            place-items: center;
+            gap: 2.4vmin;
+            user-select: none;
+        }
+        /* Analog clock */
+        .analog {
+            width: min(64vmin, 82vw);
+            height: auto;
+            filter: drop-shadow(0 6px 24px rgba(0,0,0,0.6));
+        }
+        .digital {
+            font-variant-numeric: tabular-nums;
+            font-size: clamp(14px, 2.4vmin, 22px);
+            color: var(--muted);
+            opacity: 0.9;
+            letter-spacing: 0.08em;
+        }
+        .hint {
+            position: fixed;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: #8c8c8c;
+            opacity: 0.7;
+            font-variant-numeric: tabular-nums;
+            pointer-events: none;
+        }
+        /* Hidden Mini-Snake overlay */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            place-items: center;
+            background: rgba(0,0,0,0.62);
+            backdrop-filter: blur(6px);
+        }
+        .overlay.show { display: grid; }
+        .panel {
+            padding: 16px 18px 14px;
+            border-radius: 16px;
+            background: #111111;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+        .panel-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .panel-title {
+            font-size: 14px;
+            color: var(--muted);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .panel-info {
+            font-size: 12px;
+            color: #8c8c8c;
+        }
+        canvas#snake {
+            display: block;
+            width: min(60vmin, 420px);
+            height: min(60vmin, 420px);
+            image-rendering: pixelated;
+            border-radius: 10px;
+            background: #0e0e0e;
+            box-shadow: inset 0 0 0 1px #1a1a1a;
+        }
+        .score {
+            margin-top: 10px;
+            font-variant-numeric: tabular-nums;
+            font-size: 13px;
+            color: var(--muted);
+            text-align: right;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .analog { filter: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="clock-area" id="clockArea" title="Tipp: Druecke S fuer Mini-Snake">
+            <!-- Minimaler, moderner Analog-Timer als SVG -->
+            <svg class="analog" viewBox="0 0 200 200" aria-label="Analoge Uhr" role="img">
+                <!-- Face -->
+                <defs>
+                    <filter id="innerShadow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feOffset dx="0" dy="1" />
+                        <feGaussianBlur stdDeviation="2" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="arithmetic" k2="-1" k3="2" />
+                    </filter>
+                </defs>
+                <circle cx="100" cy="100" r="96" fill="#101010" stroke="#1e1e1e" stroke-width="2" filter="url(#innerShadow)"/>
+                <!-- Minute ticks (subtle) -->
+                <g id="minorTicks"></g>
+                <!-- Hour ticks -->
+                <g id="hourTicks"></g>
+                <!-- Numbers (12, 3, 6, 9) dezent -->
+                <g fill="#6f6f6f" font-size="10" text-anchor="middle" dominant-baseline="middle">
+                    <text x="100" y="26">12</text>
+                    <text x="174" y="100">3</text>
+                    <text x="100" y="174">6</text>
+                    <text x="26" y="100">9</text>
+                </g>
+                <!-- Hands -->
+                <g id="hands" stroke-linecap="round">
+                    <line id="hourHand"   x1="100" y1="100" x2="100" y2="58"  stroke="#ffffff" stroke-width="4"/>
+                    <line id="minuteHand" x1="100" y1="100" x2="100" y2="36"  stroke="#dcdcdc" stroke-width="3"/>
+                    <line id="secondHand" x1="100" y1="104" x2="100" y2="26"  stroke="#bdbdbd" stroke-width="1.5"/>
+                    <circle cx="100" cy="100" r="3.2" fill="#ffffff"/>
+                </g>
+            </svg>
+            <div class="digital" id="digital" aria-live="off">--:--:--</div>
+        </div>
+    </div>
+
+    <!-- Hidden 15x15 Mini-Snake -->
+    <div class="overlay" id="overlay" aria-hidden="true">
+        <div class="panel">
+            <div class="panel-head">
+                <div class="panel-title">Mini-Snake 15×15</div>
+                <div class="panel-info">P = Pause • Esc = Schliessen</div>
+            </div>
+            <canvas id="snake" width="600" height="600"></canvas>
+            <div class="score" id="score">Score 000</div>
+        </div>
+    </div>
+
+    <script>
+        // ========== Analog + Digital Uhr ==========
+        (function initClock() {
+            // Build ticks
+            const minor = document.getElementById("minorTicks");
+            const hour = document.getElementById("hourTicks");
+            for (let i = 0; i < 60; i++) {
+                const isHour = i % 5 === 0;
+                const ang = i * 6; // degrees
+                const len = isHour ? 10 : 5;
+                const stroke = isHour ? "#3a3a3a" : "var(--tick)";
+                const sw = isHour ? 2 : 1;
+                const rOuter = 92;
+                const rInner = rOuter - len;
+                const x1 = 100 + rInner * Math.sin(ang * Math.PI / 180);
+                const y1 = 100 - rInner * Math.cos(ang * Math.PI / 180);
+                const x2 = 100 + rOuter * Math.sin(ang * Math.PI / 180);
+                const y2 = 100 - rOuter * Math.cos(ang * Math.PI / 180);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x1.toFixed(3));
+                line.setAttribute("y1", y1.toFixed(3));
+                line.setAttribute("x2", x2.toFixed(3));
+                line.setAttribute("y2", y2.toFixed(3));
+                line.setAttribute("stroke", stroke);
+                line.setAttribute("stroke-width", sw);
+                (isHour ? hour : minor).appendChild(line);
+            }
+
+            const hourHand = document.getElementById("hourHand");
+            const minuteHand = document.getElementById("minuteHand");
+            const secondHand = document.getElementById("secondHand");
+            const digitalEl = document.getElementById("digital");
+
+            function formatDigital(now) {
+                // De-CH, echte lokale Zeit, 24h
+                return new Intl.DateTimeFormat("de-CH", {
+                    hour: "2-digit", minute: "2-digit", second: "2-digit",
+                    hour12: false
+                }).format(now);
+            }
+
+            function tick() {
+                const now = new Date();
+                const ms = now.getMilliseconds();
+                const s = now.getSeconds() + ms / 1000;
+                const m = now.getMinutes() + s / 60;
+                const h = (now.getHours() % 12) + m / 60;
+
+                const sDeg = s * 6;                   // 360 / 60
+                const mDeg = m * 6;                   // 360 / 60
+                const hDeg = h * 30;                  // 360 / 12
+
+                hourHand.setAttribute("transform", `rotate(${hDeg.toFixed(3)} 100 100)`);
+                minuteHand.setAttribute("transform", `rotate(${mDeg.toFixed(3)} 100 100)`);
+                secondHand.setAttribute("transform", `rotate(${sDeg.toFixed(3)} 100 100)`);
+
+                digitalEl.textContent = formatDigital(now);
+                requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        })();
+
+        // ========== Hidden Mini-Snake (15x15) ==========
+        (function initSnake() {
+            const grid = 15;
+            const overlay = document.getElementById("overlay");
+            const canvas = document.getElementById("snake");
+            const scoreEl = document.getElementById("score");
+            const ctx = canvas.getContext("2d");
+
+            // Handle HiDPI for crisp pixels
+            function fitHiDPI() {
+                const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+                const cssSize = Math.min(window.innerWidth, window.innerHeight) * 0.6;
+                const display = Math.min(420, Math.max(240, Math.floor(cssSize)));
+                canvas.style.width = display + "px";
+                canvas.style.height = display + "px";
+                canvas.width = display * dpr;
+                canvas.height = display * dpr;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                cell = Math.floor(display / grid);
+                // keep square inside
+                size = cell * grid;
+                viewOffsetX = Math.floor((display - size) / 2);
+                viewOffsetY = Math.floor((display - size) / 2);
+            }
+
+            let cell = 24;
+            let size = cell * grid;
+            let viewOffsetX = 0, viewOffsetY = 0;
+            fitHiDPI();
+            window.addEventListener("resize", fitHiDPI);
+
+            const state = {
+                snake: [],
+                dir: { x: 1, y: 0 },
+                nextDir: { x: 1, y: 0 },
+                apple: { x: 9, y: 9 },
+                running: false,
+                paused: false,
+                score: 0,
+                stepMs: 120,
+                lastTime: 0
+            };
+
+            function resetGame() {
+                state.snake = [{ x: Math.floor(grid / 2), y: Math.floor(grid / 2) }];
+                state.dir = { x: 1, y: 0 };
+                state.nextDir = { x: 1, y: 0 };
+                state.apple = spawnApple();
+                state.running = true;
+                state.paused = false;
+                state.score = 0;
+            }
+
+            function spawnApple() {
+                while (true) {
+                    const x = Math.floor(Math.random() * grid);
+                    const y = Math.floor(Math.random() * grid);
+                    if (!state.snake.some(p => p.x === x && p.y === y)) return { x, y };
+                }
+            }
+
+            function drawGrid() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.save();
+                ctx.translate(viewOffsetX, viewOffsetY);
+
+                // subtle grid
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = "#0e0e0e";
+                ctx.fillRect(0, 0, size, size);
+
+                ctx.globalAlpha = 0.22;
+                ctx.strokeStyle = "#2a2a2a";
+                ctx.lineWidth = 1;
+                for (let i = 1; i < grid; i++) {
+                    const p = i * cell + 0.5;
+                    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, size); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(size, p); ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+
+                // apple
+                ctx.fillStyle = "#ffffff";
+                const ax = state.apple.x * cell;
+                const ay = state.apple.y * cell;
+                const r = Math.floor(cell * 0.28);
+                ctx.beginPath();
+                ctx.arc(ax + cell / 2, ay + cell / 2, r, 0, Math.PI * 2);
+                ctx.fill();
+
+                // snake
+                ctx.fillStyle = "#dcdcdc";
+                for (let i = 0; i < state.snake.length; i++) {
+                    const s = state.snake[i];
+                    const x = s.x * cell;
+                    const y = s.y * cell;
+                    const pad = 2;
+                    ctx.fillRect(x + pad, y + pad, cell - pad * 2, cell - pad * 2);
+                }
+
+                ctx.restore();
+            }
+
+            function step(t) {
+                if (!state.running) return;
+                if (state.paused) { drawGrid(); requestAnimationFrame(step); return; }
+
+                if (t - state.lastTime >= state.stepMs) {
+                    state.lastTime = t;
+                    // apply nextDir if not reversing
+                    if ((state.dir.x + state.nextDir.x !== 0) || (state.dir.y + state.nextDir.y !== 0)) {
+                        state.dir = { ...state.nextDir };
+                    }
+                    const head = state.snake[0];
+                    const nx = head.x + state.dir.x;
+                    const ny = head.y + state.dir.y;
+
+                    // collisions: wall
+                    if (nx < 0 || nx >= grid || ny < 0 || ny >= grid) {
+                        gameOver(); return;
+                    }
+                    // collisions: self
+                    if (state.snake.some(p => p.x === nx && p.y === ny)) {
+                        gameOver(); return;
+                    }
+
+                    // move
+                    state.snake.unshift({ x: nx, y: ny });
+
+                    // apple?
+                    if (nx === state.apple.x && ny === state.apple.y) {
+                        state.score += 1;
+                        scoreEl.textContent = "Score " + String(state.score).padStart(3, "0");
+                        state.apple = spawnApple();
+                        // optional: speedup minimal
+                        if (state.stepMs > 60) state.stepMs -= 2;
+                    } else {
+                        state.snake.pop();
+                    }
+                }
+
+                drawGrid();
+                requestAnimationFrame(step);
+            }
+
+            function gameOver() {
+                state.running = false;
+                // flash
+                ctx.save();
+                ctx.globalAlpha = 0.85;
+                ctx.fillStyle = "#111111";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+                // restart after short delay
+                setTimeout(() => {
+                    resetGame();
+                    requestAnimationFrame(step);
+                }, 900);
+            }
+
+            function openOverlay() {
+                if (overlay.classList.contains("show")) return;
+                overlay.classList.add("show");
+                overlay.setAttribute("aria-hidden", "false");
+                resetGame();
+                scoreEl.textContent = "Score 000";
+                requestAnimationFrame(step);
+            }
+
+            function closeOverlay() {
+                overlay.classList.remove("show");
+                overlay.setAttribute("aria-hidden", "true");
+                state.running = false;
+            }
+
+            // Controls
+            function handleKey(e) {
+                if (e.key === "s" || e.key === "S") {
+                    openOverlay();
+                    e.preventDefault();
+                    return;
+                }
+                if (!overlay.classList.contains("show")) return;
+
+                switch (e.key) {
+                    case "ArrowUp":
+                        if (state.dir.y !== 1) state.nextDir = { x: 0, y: -1 };
+                        e.preventDefault(); break;
+                    case "ArrowDown":
+                        if (state.dir.y !== -1) state.nextDir = { x: 0, y: 1 };
+                        e.preventDefault(); break;
+                    case "ArrowLeft":
+                        if (state.dir.x !== 1) state.nextDir = { x: -1, y: 0 };
+                        e.preventDefault(); break;
+                    case "ArrowRight":
+                        if (state.dir.x !== -1) state.nextDir = { x: 1, y: 0 };
+                        e.preventDefault(); break;
+                    case "p":
+                    case "P":
+                        state.paused = !state.paused; break;
+                    case "Escape":
+                        closeOverlay(); break;
+                }
+            }
+            window.addEventListener("keydown", handleKey, { passive: false });
+
+            // Optional: dreifach-Klick auf die Uhr oeffnet Snake
+            let clickCount = 0;
+            const clockArea = document.getElementById("clockArea");
+            clockArea.addEventListener("click", () => {
+                clickCount++;
+                if (clickCount === 3) {
+                    openOverlay();
+                    clickCount = 0;
+                }
+                setTimeout(() => { clickCount = 0; }, 450);
+            });
+
+            overlay.addEventListener("click", (e) => {
+                // Klick ausserhalb des Panels schliesst
+                if (e.target === overlay) closeOverlay();
+            });
+        })();
+
+        // Fun: kleiner Anti-Burn-in drift der Uhr
+        (function gentleDrift() {
+            const area = document.getElementById("clockArea");
+            let t = 0;
+            function loop() {
+                t += 0.0022;
+                const x = Math.sin(t) * 1.6;  // sehr dezent
+                const y = Math.cos(t * 0.9) * 1.6;
+                area.style.transform = `translate(${x}vmin, ${y}vmin)`;
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        })();
+    </script>
+    <!-- Hinweise:
+         • Echte Zeit: wird via Date() kontinuierlich gelesen (nicht beim Laden eingefroren).
+         • Mini-Snake oeffnen: Taste S (oder 3x auf die Uhr klicken). Pfeiltasten steuern.
+         • Esc schliesst, P pausiert. Grid = 15×15.
+         • Alles in einer einzigen HTML-Datei.  -->
+    <!-- Arbeitszeit-Progressbar -->
+<div id="workbar"></div>
+<style>
+    #workbar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: #ffffff;
+        width: 0%;
+        transition: width 0.5s linear;
+        pointer-events: none;
+    }
+</style>
+<script>
+    (function workbarUpdate() {
+        const bar = document.getElementById("workbar");
+        function update() {
+            const now = new Date();
+            const start = new Date(now); start.setHours(8,0,0,0);
+            const end   = new Date(now); end.setHours(17,0,0,0);
+            let pct;
+            if (now <= start) pct = 0;
+            else if (now >= end) pct = 100;
+            else pct = ((now - start) / (end - start)) * 100;
+            bar.style.width = pct + "%";
+        }
+        update();
+        setInterval(update, 60 * 1000); // jede Minute
+    })();
+</script>
+
+</body>
+</html>
