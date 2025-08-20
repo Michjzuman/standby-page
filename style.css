@@ -53,45 +53,29 @@ html, body {
     pointer-events: none;
 }
 /* Hidden Mini-Snake overlay */
+/* Overlay: Blur entfernen, nur halbtransparentes Schwarz */
 .overlay {
     position: fixed;
     inset: 0;
     display: none;
     place-items: center;
-    background: rgba(0,0,0,0.62);
-    backdrop-filter: blur(6px);
+    background: rgba(0,0,0,0.7);
+    /* backdrop-filter: blur(6px);  // weg damit */
 }
 .overlay.show { display: grid; }
-.panel {
-    padding: 16px 18px 14px;
-    border-radius: 16px;
-    background: #111111;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
-}
-.panel-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 10px;
-}
-.panel-title {
-    font-size: 14px;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-}
-.panel-info {
-    font-size: 12px;
-    color: #8c8c8c;
-}
-canvas#snake {
+
+/* iFrame: eigene Layer + Isolierung */
+iframe#snakeFrame {
     display: block;
-    width: min(60vmin, 420px);
-    height: min(60vmin, 420px);
-    image-rendering: pixelated;
+    width: min(60vmin, 620px);
+    height: min(60vmin, 620px);
+    border: none;
     border-radius: 10px;
     background: #0e0e0e;
     box-shadow: inset 0 0 0 1px #1a1a1a;
+    contain: strict;            /* isoliert Layout/Paint/Size */
+    will-change: transform;     /* Compositor Layer hint */
+    transform: translateZ(0);   /* forced GPU-Layer */
 }
 .score {
     margin-top: 10px;
