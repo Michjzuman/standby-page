@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="de">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Standby Page</title>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <div class="wrap">
+            <div class="clock-area" id="clockArea" title="Tipp: Druecke S fuer Mini-Snake">
+                <svg class="analog" viewBox="0 0 200 200" aria-label="Analoge Uhr" role="img">
+                    <defs>
+                        <filter id="innerShadow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feOffset dx="0" dy="1" />
+                            <feGaussianBlur stdDeviation="2" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="arithmetic" k2="-1" k3="2" />
+                        </filter>
+                    </defs>
+                    <circle cx="100" cy="100" r="96" fill="#101010" stroke="#1e1e1e" stroke-width="2" filter="url(#innerShadow)"/>
+                    <g id="minorTicks"></g>
+                    <g id="hourTicks"></g>
+                    <g fill="#6f6f6f" font-size="10" text-anchor="middle" dominant-baseline="middle">
+                        <text x="100" y="26">12</text>
+                        <text x="174" y="100">3</text>
+                        <text x="100" y="174">6</text>
+                        <text x="26" y="100">9</text>
+                    </g>
+                    <g id="hands" stroke-linecap="round">
+                        <line id="hourHand"   x1="100" y1="100" x2="100" y2="58"  stroke="#ffffff" stroke-width="4"/>
+                        <line id="minuteHand" x1="100" y1="100" x2="100" y2="36"  stroke="#dcdcdc" stroke-width="3"/>
+                        <line id="secondHand" x1="100" y1="104" x2="100" y2="26"  stroke="#bdbdbd" stroke-width="1.5"/>
+                        <circle cx="100" cy="100" r="3.2" fill="#ffffff"/>
+                    </g>
+                </svg>
+                <div class="digital" id="digital" aria-live="off">--:--:--</div>
+            </div>
+        </div>
+
+        <div class="overlay" id="overlay" aria-hidden="true">
+            <div class="panel">
+                <div class="panel-head">
+                    <div class="panel-title">Mini-Snake 15×15</div>
+                    <div class="panel-info">P = Pause • Esc = Schliessen</div>
+                </div>
+                <canvas id="snake" width="600" height="600"></canvas>
+                <div class="score" id="score">Score 000</div>
+            </div>
+        </div>
+        <div id="workbar"></div>
+        <script src="script.js"></script>
+    </body>
+</html>
