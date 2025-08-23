@@ -168,3 +168,48 @@
         }
     });
 })();
+
+(function buildMatrix(){
+    const m = document.getElementById("pixelMatrix");
+    if (!m) return;
+
+    // Build 6x6 = 36 pixels
+    for (let i = 0; i < 36; i++) {
+        const d = document.createElement("div");
+        d.className = "pix";
+        m.appendChild(d);
+    }
+
+    const cells = Array.from(m.children);
+
+    // Helper to set one row (0 = top) from a 6-bit value (MSB left)
+    function setRowBits(row, value) {
+        for (let col = 0; col < 6; col++) {
+            const bit = (value >> (5 - col)) & 1;
+            const idx = row * 6 + col;
+            cells[idx].classList.toggle('on', !!bit);
+        }
+    }
+
+    function updateMatrix(){
+        const now = new Date();
+        const sec = now.getSeconds();           // 0-59
+        const min = now.getMinutes();           // 0-59
+        const hrs = now.getHours();             // 0-23
+        const day = now.getDate();              // 1-31
+        const mon = now.getMonth() + 1;         // 1-12
+        let yr = now.getFullYear() - 2000;      // 0-63 for years 2000–2063
+        if (yr < 0) yr = 0;                      // clamp just in case
+        if (yr > 63) yr = yr % 64;               // wrap beyond 2063
+
+        setRowBits(0, sec);
+        setRowBits(1, min);
+        setRowBits(2, hrs);
+        setRowBits(3, day);
+        setRowBits(4, mon);
+        setRowBits(5, yr);
+    }
+
+    updateMatrix();
+    setInterval(updateMatrix, 200);
+})();
